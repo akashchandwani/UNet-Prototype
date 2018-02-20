@@ -32,22 +32,12 @@ public class Client : MonoBehaviour
     private int connectionId;
     private byte error;
 
-    public List<Player> players;
 
-    private string playerName;
-    public GameObject playerPrefab;
+    private string input;
+	private Button connectButton;
 
     public void Connect()
     {
-        string pName = GameObject.Find("NameInput").GetComponent<InputField>().text;
-        if (pName == "")
-        {
-            Debug.Log("You must enter the name");
-            return;
-        }
-
-        playerName = pName;
-
         NetworkTransport.Init();
         ConnectionConfig cc = new ConnectionConfig();
 
@@ -77,64 +67,35 @@ public class Client : MonoBehaviour
         NetworkEventType recData = NetworkTransport.Receive(out recHostId, out connectionId, out channelId, recBuffer, bufferSize, out dataSize, out error);
         switch (recData)
         {
-            case NetworkEventType.DataEvent:       //3
-                string msg = Encoding.Unicode.GetString(recBuffer, 0, dataSize);
-                Debug.Log("Receiving : " + msg);
-                string[] splitData = msg.Split('|');
-                switch (splitData[0])
-                {
-                    case "ASKNAME":
-                        OnAskName(splitData);
-                        break;
-                    case "CNN":
-                        SpawnPlayer(splitData[1], int.Parse(splitData[2]));
-                        break;
-                    case "DC":
-                        break;
-                    default:
-                        Debug.Log("Invalid message : " + msg);
-                        break;
-                }
-                break;
+		case NetworkEventType.DataEvent:
+			string msg = Encoding.Unicode.GetString (recBuffer, 0, dataSize);
+			Debug.Log ("Receiving : " + msg);
+			if (msg.Equals("CONNECTION_SUCCESS")) {
+				onConnectionSuccess ();
+				Send ("Client Received from server successful", reliableChannel);
+			}
+            break;
         }
     }
 
-    private void OnAskName(string[] data){
-        ourClientId = int.Parse(data[1]);
+	public void SendInput() {
+		input = GameObject.Find("NameInput").GetComponent<InputField>().text;
+		if (input == "") {
+			Debug.Log ("You must enter something");
+			return;
+		}
+		Send ("Input field data is " + input, reliableChannel);
+	}
 
-        // send our name to server to the server
-        Send("NAMEIS|" + playerName, reliableChannel);
-
-        // create all the other player
-        for (int i = 2; i < data.Length; i++){
-            string[] d = data[i].Split('%');
-            SpawnPlayer(d[0], int.Parse(d[1]));
-        }
-    }
-
-    private void SpawnPlayer(string playerName, int cnnId){
-        GameObject go = Instantiate(playerPrefab) as GameObject;
-
-        // Is this ours 
-        if(cnnId == ourClientId){
-            // TODO: add mobility
-            GameObject.Find("Canvas").SetActive(false);
-            //remove canvas
-            //start
-            isStarted = true;
-        }
-
-        Player p = new Player();
-        p.avatar = go;
-        p.playername = playerName;
-        p.connectionId = cnnId;
-       players.Add(p);
-    }
-
-     private void Send(string message, int channelId) {
+    private void Send(string message, int channelId) {
         Debug.Log("Sending : " + message);
         byte[] msg = Encoding.Unicode.GetBytes(message);
-        NetworkTransport.Send(hostId, connectionId, channelId, msg, message.Length*sizeof(char), out error);
-        
+        NetworkTransport.Send(hostId, connectionId, channelId, msg, message.Length*sizeof(char), out error);  
     }
+
+	private void onConnectionSuccess() {
+		Debug.Log ("Player Connected");
+		connectButton = GameObject.Find ("ConnectButton").GetComponent<Button> ();
+		connectButton.interactable = false;
+	}
 }
